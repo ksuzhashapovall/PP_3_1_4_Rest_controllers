@@ -41,12 +41,18 @@ public class UserServiceImpl implements UserService, UserDetailsService {
         existingUser.setLastName(user.getLastName());
         existingUser.setAge(user.getAge());
         existingUser.setEmail(user.getEmail());
+        existingUser.setUsername(user.getEmail());
 
         if (user.getPassword() != null && !user.getPassword().isEmpty()) {
             existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
         }
 
-        existingUser.setRoles(user.getRoles());
+        // Очищаем существующие роли и добавляем новые
+        existingUser.getRoles().clear();
+        if (user.getRoles() != null) {
+            existingUser.getRoles().addAll(user.getRoles());
+        }
+
         userRepository.save(existingUser);
     }
 

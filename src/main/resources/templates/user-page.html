@@ -12,8 +12,8 @@
 <div class="container-fluid">
   <!-- Шапка с пользователем -->
   <div class="row bg-dark text-white py-2">
-    <div class="col-3">
-      <span th:text="${user.username} + ' with roles: ' + ${user.getRolesToString()}"></span>
+    <div class="col-3" id="currentUserInfo">
+      <!-- Заполняется через JavaScript -->
     </div>
     <div class="col-7"></div>
     <div class="col-2 text-end">
@@ -50,20 +50,51 @@
             <th>Role</th>
           </tr>
           </thead>
-          <tbody>
-          <tr>
-            <td th:text="${user.id}"></td>
-            <td th:text="${user.firstName}"></td>
-            <td th:text="${user.lastName}"></td>
-            <td th:text="${user.age}"></td>
-            <td th:text="${user.username}"></td>
-            <td th:text="${user.getRolesToString()}"></td>
-          </tr>
+          <tbody id="userTableBody">
+          <!-- Заполняется через JavaScript -->
           </tbody>
         </table>
       </div>
     </div>
   </div>
 </div>
+
+<script th:inline="javascript">
+  // Загрузка данных текущего пользователя
+  document.addEventListener('DOMContentLoaded', function() {
+    loadCurrentUser();
+  });
+
+  async function loadCurrentUser() {
+    try {
+      const response = await fetch('/api/user/current');
+      const user = await response.json();
+
+      // Заполняем верхнюю панель
+      document.getElementById('currentUserInfo').innerHTML =
+              `<span>${user.username} with roles: ${getRolesString(user.roles)}</span>`;
+
+      // Заполняем таблицу
+      const tbody = document.getElementById('userTableBody');
+      tbody.innerHTML = `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.firstName}</td>
+                    <td>${user.lastName}</td>
+                    <td>${user.age}</td>
+                    <td>${user.email}</td>
+                    <td>${getRolesString(user.roles)}</td>
+                </tr>
+            `;
+    } catch (error) {
+      console.error('Error loading user:', error);
+    }
+  }
+
+  function getRolesString(roles) {
+    if (!roles || roles.length === 0) return '';
+    return roles.map(role => role.name.replace('ROLE_', '')).join(' ');
+  }
+</script>
 </body>
 </html>
