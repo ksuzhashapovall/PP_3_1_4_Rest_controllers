@@ -1,4 +1,4 @@
-package ru.kata.spring.boot_security.demo.controller;
+package ru.kata.spring.boot_security.demo.rest;
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -11,8 +11,8 @@ import ru.kata.spring.boot_security.demo.model.User;
 @RequestMapping("/api/user")
 public class UserRestController {
 
-    @GetMapping("/current")
-    public ResponseEntity<User> getCurrentUser(@AuthenticationPrincipal User user) {
+    @GetMapping("/info")
+    public ResponseEntity<User> getUserInfo(@AuthenticationPrincipal User user) {
         return ResponseEntity.ok(user);
     }
 }
