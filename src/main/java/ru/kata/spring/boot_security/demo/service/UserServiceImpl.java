@@ -7,51 +7,82 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.kata.spring.boot_security.demo.dto.UserDto;
+import ru.kata.spring.boot_security.demo.dto.UserResponseDto;
+import ru.kata.spring.boot_security.demo.mapper.UserMapper;
+import ru.kata.spring.boot_security.demo.model.Role;
 import ru.kata.spring.boot_security.demo.model.User;
 import ru.kata.spring.boot_security.demo.repository.UserRepository;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImpl implements UserService, UserDetailsService {
 
     private final UserRepository userRepository;
+    private final RoleService roleService;
     private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
 
     @Autowired
-    public UserServiceImpl(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public UserServiceImpl(UserRepository userRepository,
+                           RoleService roleService,
+                           PasswordEncoder passwordEncoder,
+                           UserMapper userMapper) {
         this.userRepository = userRepository;
+        this.roleService = roleService;
         this.passwordEncoder = passwordEncoder;
+        this.userMapper = userMapper;
     }
 
     @Override
     @Transactional
-    public void add(User user) {
-        userRepository.save(user);
+    public User add(UserDto userDto) {
+        userDto.setPassword(passwordEncoder.encode(userDto.getPassword()));
+
+        Set<Role> roleSet = new HashSet<>();
+        if (userDto.getRoles() != null && !userDto.getRoles().isEmpty()) {
+            roleSet.addAll(userDto.getRoles());
+        } else {
+            Role userRole = roleService.findByName("ROLE_USER");
+            if (userRole != null) {
+                roleSet.add(userRole);
+            }
+        }
+        userDto.setRoles(roleSet);
+
+        User user = userMapper.toEntity(userDto);
+        return userRepository.save(user);
     }
 
     @Override
     @Transactional
-    public void update(User user) {
-        User existingUser = userRepository.findById(user.getId())
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + user.getId()));
+    public User update(Long id, UserDto userDto) {
+        User existingUser = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
 
-        existingUser.setFirstName(user.getFirstName());
-        existingUser.setLastName(user.getLastName());
-        existingUser.setAge(user.getAge());
-        existingUser.setEmail(user.getEmail());
-        existingUser.setUsername(user.getUsername());
+        existingUser.setFirstName(userDto.getFirstName());
+        existingUser.setLastName(userDto.getLastName());
+        existingUser.setAge(userDto.getAge());
+        existingUser.setEmail(userDto.getEmail());
+        existingUser.setUsername(userDto.getEmail());
 
-        if (user.getPassword() != null && !user.getPassword().isEmpty()) {
-            if (!user.getPassword().startsWith("$2a$")) {
-                existingUser.setPassword(passwordEncoder.encode(user.getPassword()));
+        if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
+            if (!userDto.getPassword().startsWith("$2a$")) {
+                existingUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
             } else {
-                existingUser.setPassword(user.getPassword());
+                existingUser.setPassword(userDto.getPassword());
             }
         }
 
-        existingUser.setRoles(user.getRoles());
-        userRepository.save(existingUser);
+        if (userDto.getRoles() != null) {
+            existingUser.setRoles(userDto.getRoles());
+        }
+
+        return userRepository.save(existingUser);
     }
 
     @Override
@@ -80,6 +111,50 @@ public class UserServiceImpl implements UserService, UserDetailsService {
     @Transactional(readOnly = true)
     public List<User> getAll() {
         return userRepository.findAll();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<UserResponseDto> getAllResponseDto() {
+        return userRepository.findAll().stream()
+                .map(user -> new UserResponseDto(
+                        user.getId(),
+                        user.getFirstName(),
+                        user.getLastName(),
+                        user.getAge(),
+                        user.getEmail(),
+                        user.getRoles()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponseDto getUserResponseDtoById(Long id) {
+        User user = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("User not found with id: " + id));
+        return new UserResponseDto(
+                user.getId(),
+                user.getFirstName(),
+                user.getLastName(),
+                user.getAge(),
+                user.getEmail(),
+                user.getRoles());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public UserResponseDto getCurrentUserResponseDto(String username) {
+        User currentUser = findByUsername(username);
+        if (currentUser == null) {
+            throw new RuntimeException("Current user not found");
+        }
+        return new UserResponseDto(
+                currentUser.getId(),
+                currentUser.getFirstName(),
+                currentUser.getLastName(),
+                currentUser.getAge(),
+                currentUser.getEmail(),
+                currentUser.getRoles());
     }
 
     @Override

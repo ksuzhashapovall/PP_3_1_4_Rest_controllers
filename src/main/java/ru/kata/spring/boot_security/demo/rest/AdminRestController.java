@@ -4,18 +4,15 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import ru.kata.spring.boot_security.demo.dto.UserDto;
-import ru.kata.spring.boot_security.demo.mapper.UserMapper;
+import ru.kata.spring.boot_security.demo.dto.UserResponseDto;
 import ru.kata.spring.boot_security.demo.model.Role;
 import ru.kata.spring.boot_security.demo.model.User;
 import ru.kata.spring.boot_security.demo.service.RoleService;
 import ru.kata.spring.boot_security.demo.service.UserService;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.stream.Collectors;
 
 @RestController
@@ -24,41 +21,38 @@ public class AdminRestController {
 
     private final UserService userService;
     private final RoleService roleService;
-    private final PasswordEncoder passwordEncoder;
-    private final UserMapper userMapper;
 
     @Autowired
-    public AdminRestController(UserService userService, RoleService roleService,
-                               PasswordEncoder passwordEncoder, UserMapper userMapper) {
+    public AdminRestController(UserService userService, RoleService roleService) {
         this.userService = userService;
         this.roleService = roleService;
-        this.passwordEncoder = passwordEncoder;
-        this.userMapper = userMapper;
     }
 
     @GetMapping("/users")
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userService.getAll();
+    public ResponseEntity<List<UserResponseDto>> getAllUsers() {
+        List<UserResponseDto> users = userService.getAllResponseDto();
         return ResponseEntity.ok(users);
     }
 
     @GetMapping("/user/{id}")
-    public ResponseEntity<User> getUserById(@PathVariable Long id) {
-        User user = userService.getById(id);
-        if (user == null) {
+    public ResponseEntity<UserResponseDto> getUserById(@PathVariable Long id) {
+        try {
+            UserResponseDto user = userService.getUserResponseDtoById(id);
+            return ResponseEntity.ok(user);
+        } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(user);
     }
 
     @GetMapping("/current-user")
-    public ResponseEntity<User> getCurrentUser() {
+    public ResponseEntity<UserResponseDto> getCurrentUser() {
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User currentUser = userService.findByUsername(username);
-        if (currentUser == null) {
+        try {
+            UserResponseDto currentUser = userService.getCurrentUserResponseDto(username);
+            return ResponseEntity.ok(currentUser);
+        } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
-        return ResponseEntity.ok(currentUser);
     }
 
     @GetMapping("/roles")
@@ -69,47 +63,18 @@ public class AdminRestController {
 
     @PostMapping("/users")
     public ResponseEntity<User> createUser(@RequestBody UserDto userDto) {
-        userDto.setPassword(passwordEncoder.encode(userDto.getPassword()));
-
-        Set<Role> roleSet = new HashSet<>();
-        if (userDto.getRoles() != null && !userDto.getRoles().isEmpty()) {
-            roleSet.addAll(userDto.getRoles());
-        } else {
-            Role userRole = roleService.findByName("ROLE_USER");
-            if (userRole != null) {
-                roleSet.add(userRole);
-            }
-        }
-        userDto.setRoles(roleSet);
-
-        User user = userMapper.toEntity(userDto);
-        userService.add(user);
-
-        return new ResponseEntity<>(user, HttpStatus.CREATED);
+        User createdUser = userService.add(userDto);
+        return new ResponseEntity<>(createdUser, HttpStatus.CREATED);
     }
 
     @PutMapping("/users/{id}")
     public ResponseEntity<User> updateUser(@PathVariable Long id, @RequestBody UserDto userDto) {
-        User existingUser = userService.getById(id);
-        if (existingUser == null) {
+        try {
+            User updatedUser = userService.update(id, userDto);
+            return ResponseEntity.ok(updatedUser);
+        } catch (RuntimeException e) {
             return ResponseEntity.notFound().build();
         }
-
-        existingUser.setFirstName(userDto.getFirstName());
-        existingUser.setLastName(userDto.getLastName());
-        existingUser.setAge(userDto.getAge());
-        existingUser.setEmail(userDto.getEmail());
-
-        if (userDto.getPassword() != null && !userDto.getPassword().isEmpty()) {
-            existingUser.setPassword(passwordEncoder.encode(userDto.getPassword()));
-        }
-
-        if (userDto.getRoles() != null) {
-            existingUser.setRoles(userDto.getRoles());
-        }
-
-        userService.update(existingUser);
-        return ResponseEntity.ok(existingUser);
     }
 
     @DeleteMapping("/users/{id}")
